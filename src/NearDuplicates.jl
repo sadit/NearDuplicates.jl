@@ -1,7 +1,7 @@
 module NearDuplicates
 
-using InvertedFiles, TextSearch, SimilaritySearch, BagOfWords
-using JSON, CodecZstd, CodecBzip2, CodecZlib, Glob, DataFrames, Statistics, Comonicon
+using TextSearch, SimilaritySearch, BagOfWords
+using JSON, CodecZstd, CodecBzip2, CodecZlib, DataFrames, Statistics, Comonicon
 
 function neardup_bow(textconfig::TextConfig, corpus, qs; samplesize::Int)
     corpus_tokens = tokenize_corpus(textconfig, corpus)
@@ -79,21 +79,24 @@ Documents are preprocessed and distance is measured with `1 - jaccardcoefficient
 
 # Flags
 
-- `--print`: print output to stdout instead of storing to some directory
+- `--store`: save files into an output directory print instead of printing to stdout
 
 """
-@main function main(files...; quantiles::String="0.001,0.003,0.01,0.03,0.1", field::String="text", outdir::String="output", print::Bool=false, samplesize::Int=1000)
+@main function main(files...; quantiles::String="0.001,0.003,0.01,0.03,0.1", field::String="text", outdir::String="output", store::Bool=false, samplesize::Int=1000)
     textconfig = TextConfig(del_punc=true, group_usr=true)
     qs = [parse(Float64, n) for n in split(quantiles, ',')]
     
-    !print && mkpath(outdir)
+    store && mkpath(outdir)
     for filename in files
-        outname = let outname = basename(filename)
-            outname = splitext(outname) |> first
-            joinpath(outdir, outname * ".gz")
+        if store
+            outname = let outname = basename(filename)
+                outname = splitext(outname) |> first
+                joinpath(outdir, outname * ".gz")
+            end
+            !isfile(outname) & neardup_bow(filename; outname, textconfig, field, qs, samplesize, print_stdout=false)
+        else
+            neardup_bow(filename; outname="", textconfig, field, qs, samplesize, print_stdout=true)
         end
-
-        !isfile(outname) && neardup_bow(filename; outname, textconfig, field, qs, samplesize, print_stdout=print)
     end
 end
 
